@@ -75,8 +75,46 @@ class jsonDataTable {
             "columns": colDefs,
             "dom": 'Bfrtip',
             "buttons": [
-                {extend: 'colvis', text: 'Show/Hide Columns'}
+                {extend: 'colvis', text: 'Show/Hide Columns'},
+                {
+                    text: 'New',
+                    className: 'btn btn-success',
+                    action: function() {
+                        alert('Add new record logic here');
+                    }
+                },
+                {
+                    text:'Edit',
+                    className: 'btn btn-primary',
+                    action: function (dt) {
+                        let table = $('#ingTable');
+                        var data = table.row({ selected: true }).data();
+                        if (data) {
+                            alert('Edit record:\n' + JSON.stringify(data));
+                        } else {
+                            alert('Please click to select a row for editing.');
+                        }
+
+                    }
+                },
+                {
+                    text: 'Delete',
+                    className: 'btn btn-danger',
+                    action: function (dt) {
+                        let table = $('#ingTable');
+                        var row = table.row({ selected: true });
+                        if (row.any()) {
+                            if (confirm('Are you sure you want to delete this record?')) {
+                                row.remove().draw(false);
+                            }
+                        } else {
+                            alert('Please click to select a row for deleting.');
+                        }
+                    }
+                }
+
             ],
+            "select": {style: 'single'},
             "responsive": true,
             "initComplete": function () {
                 const api = this.api();
