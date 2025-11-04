@@ -67,13 +67,22 @@ class jsonDataTable {
         return columns;
     }
 
+    generateEditModal(tempid,dt) {
+        
+    }
+
     initDataTable() {
         const rawData = this.data;
         const colDefs = this.generateConfig(rawData.root);
         $('#ingTable').DataTable({
             "data": rawData.root,
             "columns": colDefs,
-            "dom": 'Bfrtip',
+            layout: {
+                topStart: 'buttons',
+                topEnd: 'search',
+                bottomStart: 'info',
+                bottomEnd: 'paging'
+            },
             "buttons": [
                 {extend: 'colvis', text: 'Show/Hide Columns'},
                 {
@@ -85,22 +94,21 @@ class jsonDataTable {
                 },
                 {
                     text:'Edit',
-                    className: 'btn btn-primary',
-                    action: function (dt) {
-                        let table = $('#ingTable');
-                        var data = table.row({ selected: true }).data();
+                    extend: 'selected',
+                    attr: { "id": 'btnEdit', "type":"button","class": 'btn btn-primary', "data-bs-toggle":"modal", "data-bs-target":"#staticBackdrop1"},
+                    action: function (e, dt, node, config) {
+                        var data = dt.row({ selected: true }).data();
                         if (data) {
                             alert('Edit record:\n' + JSON.stringify(data));
                         } else {
                             alert('Please click to select a row for editing.');
                         }
-
                     }
                 },
                 {
                     text: 'Delete',
                     className: 'btn btn-danger',
-                    action: function (dt) {
+                    action: function (e, dt, node, config) {
                         let table = $('#ingTable');
                         var row = table.row({ selected: true });
                         if (row.any()) {
