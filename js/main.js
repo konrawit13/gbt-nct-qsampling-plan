@@ -165,9 +165,218 @@ class jsonDataTable {
             }
         });
     }
+
+    /**
+     * Load a JSON file and return its data
+     * @param {string} filePath - Path to the JSON file
+     * @returns {Promise<Array>} - Promise that resolves to the JSON data array
+     */
+    async loadJSONFile(filePath) {
+        try {
+            const response = await fetch(filePath);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const data = await response.json();
+            return Array.isArray(data) ? data : [];
+        } catch (err) {
+            console.error(`Error loading JSON file ${filePath}:`, err);
+            throw err;
+        }
+    }
+
+    /**
+     * Compare two JSON files and return comparison results
+     * @param {string} file1Path - Path to the first JSON file
+     * @param {string} file2Path - Path to the second JSON file
+     * @param {string} uniqueKey - Key to use for identifying unique records (default: 'TestingNo')
+     * @returns {Promise<Object>} - Comparison results with added, removed, modified, and unchanged records
+     */
+    async compareJSONFiles(file1Path, file2Path, uniqueKey = 'TestingNo') {
+        try {
+            const [data1, data2] = await Promise.all([
+                this.loadJSONFile(file1Path),
+                this.loadJSONFile(file2Path)
+            ]);
+
+            // Create maps for quick lookup using the unique key
+            const map1 = new Map();
+            const map2 = new Map();
+
+            data1.forEach(item => {
+                const key = item[uniqueKey];
+                if (key) {
+                    map1.set(key, item);
+                }
+            });
+
+            data2.forEach(item => {
+                const key = item[uniqueKey];
+                if (key) {
+                    map2.set(key, item);
+                }
+            });
+
+            // Find differences
+            const added = [];
+            const removed = [];
+            const modified = [];
+            const unchanged = [];
+
+            // Check items in file2 (newer file)
+            map2.forEach((item2, key) => {
+                if (!map1.has(key)) {
+                    added.push(item2);
+                } else {
+                    const item1 = map1.get(key);
+                    if (JSON.stringify(item1) !== JSON.stringify(item2)) {
+                        modified.push({
+                            key: key,
+                            old: item1,
+                            new: item2
+                        });
+                    } else {
+                        unchanged.push(item2);
+                    }
+                }
+            });
+
+            // Check items in file1 that are not in file2
+            map1.forEach((item1, key) => {
+                if (!map2.has(key)) {
+                    removed.push(item1);
+                }
+            });
+
+            return {
+                file1: {
+                    path: file1Path,
+                    count: data1.length,
+                    uniqueKeys: map1.size
+                },
+                file2: {
+                    path: file2Path,
+                    count: data2.length,
+                    uniqueKeys: map2.size
+                },
+                comparison: {
+                    added: added,
+                    removed: removed,
+                    modified: modified,
+                    unchanged: unchanged,
+                    addedCount: added.length,
+                    removedCount: removed.length,
+                    modifiedCount: modified.length,
+                    unchangedCount: unchanged.length
+                }
+            };
+        } catch (err) {
+            console.error('Error comparing JSON files:', err);
+            throw err;
+        }
+    }
+
+    /**
+     * Merge two JSON files into a single data object
+     * @param {string} file1Path - Path to the first JSON file
+     * @param {string} file2Path - Path to the second JSON file
+     * @param {string} uniqueKey - Key to use for identifying unique records (default: 'TestingNo')
+     * @param {string} mergeStrategy - Strategy for merging: 'preferNew' (default), 'preferOld', or 'combine'
+     * @returns {Promise<Object>} - Merged data object with all records
+     */
+    async mergeJSONFiles(file1Path, file2Path, uniqueKey = 'TestingNo', mergeStrategy = 'preferNew') {
+        try {
+            const [data1, data2] = await Promise.all([
+                this.loadJSONFile(file1Path),
+                this.loadJSONFile(file2Path)
+            ]);
+
+            // Create a map to store merged records
+            const mergedMap = new Map();
+
+            // Add records from file1
+            data1.forEach(item => {
+                const key = item[uniqueKey];
+                if (key) {
+                    mergedMap.set(key, { ...item, _source: 'file1' });
+                }
+            });
+
+            // Merge records from file2 based on strategy
+            data2.forEach(item => {
+                const key = item[uniqueKey];
+                if (key) {
+                    if (mergedMap.has(key)) {
+                        // Record exists in both files
+                        if (mergeStrategy === 'preferNew') {
+                            mergedMap.set(key, { ...item, _source: 'both', _merged: true });
+                        } else if (mergeStrategy === 'preferOld') {
+                            // Keep the old one, but mark it as merged
+                            const existing = mergedMap.get(key);
+                            mergedMap.set(key, { ...existing, _source: 'both', _merged: true });
+                        } else if (mergeStrategy === 'combine') {
+                            // Combine fields, with file2 values taking precedence
+                            const existing = mergedMap.get(key);
+                            mergedMap.set(key, { ...existing, ...item, _source: 'both', _merged: true });
+                        }
+                    } else {
+                        // New record from file2
+                        mergedMap.set(key, { ...item, _source: 'file2' });
+                    }
+                }
+            });
+
+            // Convert map to array
+            const mergedArray = Array.from(mergedMap.values());
+
+            return {
+                merged: mergedArray,
+                stats: {
+                    totalRecords: mergedArray.length,
+                    fromFile1: mergedArray.filter(r => r._source === 'file1').length,
+                    fromFile2: mergedArray.filter(r => r._source === 'file2').length,
+                    mergedRecords: mergedArray.filter(r => r._merged === true).length,
+                    file1Path: file1Path,
+                    file2Path: file2Path,
+                    mergeStrategy: mergeStrategy
+                }
+            };
+        } catch (err) {
+            console.error('Error merging JSON files:', err);
+            throw err;
+        }
+    }
+
+    /**
+     * Compare and merge two JSON files in one operation
+     * @param {string} file1Path - Path to the first JSON file
+     * @param {string} file2Path - Path to the second JSON file
+     * @param {string} uniqueKey - Key to use for identifying unique records (default: 'TestingNo')
+     * @param {string} mergeStrategy - Strategy for merging: 'preferNew' (default), 'preferOld', or 'combine'
+     * @returns {Promise<Object>} - Object containing both comparison results and merged data
+     */
+    async compareAndMerge(file1Path, file2Path, uniqueKey = 'TestingNo', mergeStrategy = 'preferNew') {
+        try {
+            const [comparison, merged] = await Promise.all([
+                this.compareJSONFiles(file1Path, file2Path, uniqueKey),
+                this.mergeJSONFiles(file1Path, file2Path, uniqueKey, mergeStrategy)
+            ]);
+
+            return {
+                comparison: comparison,
+                merged: merged
+            };
+        } catch (err) {
+            console.error('Error in compareAndMerge:', err);
+            throw err;
+        }
+    }
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
     let dataTable = await jsonDataTable.create();
     dataTable.initDataTable();
+
+    const compare = dataTable.compareJSONFiles('js/SP_CALL_DATA_ILAB_LIST2025-2026-01-18.json','js/SP_CALL_DATA_ILAB_LIST2026-2026-01-18.json');
+    console.log(compare);
 });
