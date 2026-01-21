@@ -1,7 +1,7 @@
 
 class jsonDataTable {
     constructor(data,loadstate) {
-        this.json_url = "js/sampling_plan2025.json";
+        this.json_url = "js/sampling_prog2026-01-22.json";
         this.data = data;
         this.loading = loadstate; // Track loading state
         this.error = null;
@@ -13,7 +13,7 @@ class jsonDataTable {
         let loadstate = true;
         
         try {
-            const response = await fetch("js/sampling_plan2025.json");
+            const response = await fetch("js/sampling_prog2026-01-22.json");
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
