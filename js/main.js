@@ -5,6 +5,7 @@ class jsonDataTable {
         this.data = data;
         this.loading = loadstate; // Track loading state
         this.error = null;
+        this.normalizedDateCache = new Map(); // Cache for normalized dates
     }
 
     static async create() {
@@ -29,22 +30,194 @@ class jsonDataTable {
         return new jsonDataTable(data, loadstate);
     }
 
+    /**
+     * Normalize date string to ISO format (YYYY-MM-DD)
+     * Handles various date formats including Thai dates, ISO dates with time, etc.
+     * Uses cache to store normalized dates for performance and reuse.
+     * @param {string} dateString - Date string in various formats
+     * @param {boolean} useCache - Whether to use cache (default: true)
+     * @returns {string} - ISO format date string like "2026-01-14"
+     */
+    normalizeDate(dateString, useCache = true) {
+        if (!dateString || typeof dateString !== 'string') {
+            return dateString;
+        }
+
+        const trimmed = dateString.trim();
+        
+        // Check cache first
+        if (useCache && this.normalizedDateCache.has(trimmed)) {
+            return this.normalizedDateCache.get(trimmed);
+        }
+
+        let normalized = null;
+        
+        // Handle ISO date strings with time (e.g., "2569-01-09T08:00:00.000Z" or "2026-01-09T08:00:00.000Z")
+        const isoDateTimeRegex = /^(\d{4})-(\d{2})-(\d{2})T/;
+        const isoMatch = trimmed.match(isoDateTimeRegex);
+        if (isoMatch) {
+            let year = parseInt(isoMatch[1], 10);
+            const month = isoMatch[2];
+            const day = isoMatch[3];
+            
+            // Check if year is in Buddhist Era (BE) - typically years > 2500
+            if (year > 2500) {
+                year = year - 543; // Convert BE to CE
+            }
+            
+            normalized = `${year}-${month}-${day}`;
+        } else {
+            // Handle simple ISO date format (YYYY-MM-DD)
+            const isoDateRegex = /^(\d{4})-(\d{2})-(\d{2})$/;
+            const simpleIsoMatch = trimmed.match(isoDateRegex);
+            if (simpleIsoMatch) {
+                let year = parseInt(simpleIsoMatch[1], 10);
+                
+                // Check if year is in Buddhist Era (BE) - typically years > 2500
+                if (year > 2500) {
+                    year = year - 543; // Convert BE to CE
+                }
+                
+                normalized = `${year}-${simpleIsoMatch[2]}-${simpleIsoMatch[3]}`;
+            } else {
+                // Handle Thai date format
+                normalized = this.parseThaiDate(trimmed);
+            }
+        }
+
+        // Store in cache for future use
+        if (useCache && normalized && normalized !== trimmed) {
+            this.normalizedDateCache.set(trimmed, normalized);
+        }
+
+        return normalized;
+    }
+
+    /**
+     * Get cleaned/normalized date data for a specific field
+     * @param {string} fieldName - Name of the date field
+     * @param {Array} dataArray - Array of data objects (optional, uses this.data if not provided)
+     * @returns {Array} - Array of objects with original and normalized date values
+     */
+    getCleanedDateData(fieldName, dataArray = null) {
+        const sourceData = dataArray || (this.data && this.data.root ? this.data.root : []);
+        const cleaned = [];
+
+        sourceData.forEach((item, index) => {
+            if (item && item[fieldName]) {
+                const original = item[fieldName];
+                const normalized = this.normalizeDate(original);
+                cleaned.push({
+                    index: index,
+                    original: original,
+                    normalized: normalized,
+                    isValid: !isNaN(new Date(normalized).getTime())
+                });
+            }
+        });
+
+        return cleaned;
+    }
+
+    /**
+     * Parse Thai date string to ISO format (YYYY-MM-DD)
+     * @param {string} thaiDateString - Thai date string like "14 มกราคม 2569"
+     * @returns {string} - ISO format date string like "2026-01-14"
+     */
+    parseThaiDate(thaiDateString) {
+        if (!thaiDateString || typeof thaiDateString !== 'string') {
+            return thaiDateString;
+        }
+
+        // Thai month names mapping
+        const thaiMonths = {
+            'มกราคม': 1,
+            'กุมภาพันธ์': 2,
+            'มีนาคม': 3,
+            'เมษายน': 4,
+            'พฤษภาคม': 5,
+            'มิถุนายน': 6,
+            'กรกฎาคม': 7,
+            'สิงหาคม': 8,
+            'กันยายน': 9,
+            'ตุลาคม': 10,
+            'พฤศจิกายน': 11,
+            'ธันวาคม': 12
+        };
+
+        // Check if the string contains Thai characters (Thai date format)
+        const hasThaiChars = /[ก-๙]/.test(thaiDateString);
+        
+        if (!hasThaiChars) {
+            // Not a Thai date, return as is (might be ISO format or other format)
+            return thaiDateString;
+        }
+
+        // Parse Thai date format: "DD MMMM YYYY" (e.g., "14 มกราคม 2569")
+        const parts = thaiDateString.trim().split(/\s+/);
+        
+        if (parts.length < 3) {
+            // Invalid format, return original
+            return thaiDateString;
+        }
+
+        const day = parseInt(parts[0], 10);
+        const monthName = parts[1];
+        const beYear = parseInt(parts[2], 10); // Buddhist Era year
+
+        // Convert Buddhist Era to Gregorian (CE = BE - 543)
+        const ceYear = beYear - 543;
+
+        // Get month number
+        const month = thaiMonths[monthName];
+
+        if (!month || isNaN(day) || isNaN(ceYear) || day < 1 || day > 31) {
+            // Invalid date components, return original
+            return thaiDateString;
+        }
+
+        // Format as YYYY-MM-DD
+        const monthStr = String(month).padStart(2, '0');
+        const dayStr = String(day).padStart(2, '0');
+        
+        return `${ceYear}-${monthStr}-${dayStr}`;
+    }
+
     renderDaterenderDate(data, type, row) {
-        if (type === 'display' || type === 'filter') {
-            const date = new Date(data);
+        // Normalize date string to ISO format (handles Thai dates, ISO with time, etc.)
+        const isoDateString = this.normalizeDate(data);
+        const date = new Date(isoDateString);
+        
+        // Check if date is valid
+        if (isNaN(date.getTime())) {
+            // Invalid date, return original data
+            return data;
+        }
+        
+        // For display, return formatted date
+        if (type === 'display') {
             return date.toLocaleString('en-US', {
                 year:"numeric",
                 month: "short",
                 day: "numeric"
             });
         }
-        return data;
+        
+        // For filter, type, and sort, return ISO date string for proper filtering/sorting
+        // This ensures DataTable can properly compare and filter dates
+        if (type === 'filter' || type === 'type' || type === 'sort') {
+            return isoDateString;
+        }
+        
+        // For any other type, return ISO date string
+        return isoDateString;
     }
 
     generateConfig(dataArr) {
         const show_index = [0,1,2,4,5,9,15];
         const date_keys = ["sample_sending_date"];
         const keys = Object.keys(dataArr[0]);
+        const self = this; // Store reference to 'this' for use in callbacks
 
         const columns = keys.map((key, index) => {
             let columnDef = {
@@ -53,7 +226,9 @@ class jsonDataTable {
             }
 
             if (date_keys.includes(key)) {
-                columnDef.render = this.renderDaterenderDate;
+                columnDef.render = function(data, type, row) {
+                    return self.renderDaterenderDate(data, type, row);
+                };
             }
 
             if (show_index.includes(index)) {
@@ -74,6 +249,7 @@ class jsonDataTable {
     initDataTable() {
         const rawData = this.data;
         const colDefs = this.generateConfig(rawData.root);
+        const self = this; // Store reference for use in callbacks
         $('#ingTable').DataTable({
             "data": rawData.root,
             "columns": colDefs,
@@ -133,8 +309,46 @@ class jsonDataTable {
                 api.columns().every(function () {
                     const column = this;
                     const index = column.index();
+                    
+                    // Safely get column definition from settings or stored definitions
+                    let columnDef = null;
+                    try {
+                        const settings = column.settings()[0];
+                        if (settings && settings.aoColumns && settings.aoColumns[index]) {
+                            columnDef = settings.aoColumns[index];
+                        } else if (colDefs && colDefs[index]) {
+                            // Fallback to stored column definitions
+                            columnDef = colDefs[index];
+                        }
+                    } catch (e) {
+                        console.warn('Could not access column definition:', e);
+                        // Fallback to stored column definitions
+                        if (colDefs && colDefs[index]) {
+                            columnDef = colDefs[index];
+                        }
+                    }
 
-                    const uniqueValues = column.data().unique().sort();
+                    // Get unique values using the filter render function if available
+                    // This ensures date columns use ISO format for filtering
+                    let uniqueValues;
+                    if (columnDef && columnDef.render && typeof columnDef.render === 'function') {
+                        try {
+                            // Get raw data values and apply filter render to each
+                            const rawData = column.data().toArray();
+                            const filterValues = rawData.map(function(data) {
+                                if (data === null || data === undefined) return '';
+                                return columnDef.render(data, 'filter', null);
+                            }).filter(function(val) {
+                                return val !== null && val !== undefined && val !== '';
+                            });
+                            uniqueValues = [...new Set(filterValues)].sort();
+                        } catch (e) {
+                            console.warn('Error applying filter render:', e);
+                            uniqueValues = column.data().unique().sort();
+                        }
+                    } else {
+                        uniqueValues = column.data().unique().sort();
+                    }
 
                     const $filterTh = $('<th></th>');
                     $filterRow.append($filterTh);
@@ -152,7 +366,34 @@ class jsonDataTable {
                             });
 
                         Array.from(uniqueValues).sort().forEach(function (val) {
-                            select.append('<option value="' + val + '">' + val + '</option>');
+                            // For display in dropdown, show formatted date if it's a date value
+                            let displayVal = val;
+                            try {
+                                if (columnDef && columnDef.render && typeof val === 'string') {
+                                    // Normalize the date first to handle various formats
+                                    const normalizedDate = self.normalizeDate(val);
+                                    
+                                    // Check if it's a valid date format (YYYY-MM-DD or ISO with time)
+                                    const dateRegex = /^\d{4}-\d{2}-\d{2}/;
+                                    if (dateRegex.test(normalizedDate)) {
+                                        const date = new Date(normalizedDate);
+                                        if (!isNaN(date.getTime())) {
+                                            displayVal = date.toLocaleString('en-US', {
+                                                year:"numeric",
+                                                month: "short",
+                                                day: "numeric"
+                                            });
+                                        }
+                                    }
+                                }
+                            } catch (e) {
+                                // If formatting fails, use original value
+                                console.warn('Error formatting display value:', e);
+                            }
+                            // Escape HTML to prevent XSS
+                            const escapedVal = $('<div>').text(val).html();
+                            const escapedDisplay = $('<div>').text(displayVal).html();
+                            select.append('<option value="' + escapedVal + '">' + escapedDisplay + '</option>');
                         });
 
                         api.on('column-visibility.dt', function (e, settings, colIdx, visible) {
