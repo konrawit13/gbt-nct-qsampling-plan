@@ -6,6 +6,9 @@ class jsonDataTable {
         this.loading = loadstate; // Track loading state
         this.error = null;
         this.normalizedDateCache = new Map(); // Cache for normalized dates
+        this.dd_opts = null;
+        this.new_entry_opts = null;
+        this.modal_collections = [];
     }
 
     static async create() {
@@ -14,7 +17,7 @@ class jsonDataTable {
         let loadstate = true;
         
         try {
-            const response = await fetch("js/sampling_prog2026-01-22.json");
+            const response = await fetch("js/sampling_prog2026-01-23.json"); //js\sampling_prog2026-01-23.json
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
@@ -214,7 +217,7 @@ class jsonDataTable {
     }
 
     generateConfig(dataArr) {
-        const show_index = [0,1,2,4,5,9,15];
+        const show_index = [1,2,3,4,5,19,16];
         const date_keys = ["sample_sending_date"];
         const keys = Object.keys(dataArr[0]);
         const self = this; // Store reference to 'this' for use in callbacks
@@ -241,6 +244,56 @@ class jsonDataTable {
 
         return columns;
     }
+    async load_ddopts() {
+        const ddopts_path = 'js/dd_opts2026-01-23.json';
+        const entry_templ_path = 'js/sampling_entry_templ2026-01-23.json';
+        try {
+            console.log('fetching dropdown option')
+            const response = await fetch(ddopts_path);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            this.dd_opts = await response.json();
+            console.log('loaded dropdown option:', this.dd_opts);
+        } catch (err) {
+            console.error("Error fetching data:", err);
+            return null; 
+        }
+
+        try {
+            console.log('fetching new entry_opts');
+            const response = await fetch(entry_templ_path);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            this.new_entry_opts = await response.json();
+            console.log('loaded new entry opts:', this.new_entry_opts);
+        } catch (err) {
+            console.error("Error fetching data:", err);
+            return null; 
+        }
+    }
+
+    async generateNewEntryModal() {
+        const blank_modal = document.getElementById('staticBackdrop2').cloneNode(true);
+        const modalbody = blank_modal.querySelector('.modal-body');
+
+        const purpose_dd = document.createElement('select');
+        const dd_optsentries = Object.entries(this.dd_opts.data);
+        for (const purpose of dd_optsentries) {
+            if (!purpose) {
+                continue;
+            }
+            let opt = document.createElement('option');
+            opt.innerText = purpose[0];
+            purpose_dd.appendChild(opt);
+        }
+        modalbody.appendChild(purpose_dd);
+
+        this.modal_collections.push({'entry': blank_modal});
+
+        return blank_modal;
+    }
 
     generateEditModal(tempid,dt) {
         
@@ -263,9 +316,11 @@ class jsonDataTable {
                 {extend: 'colvis', text: 'Show/Hide Columns'},
                 {
                     text: 'New',
-                    className: 'btn btn-success',
+                    attr: { "id": 'newEntryBtn1', "type":"button","class": 'btn btn-success', "data-bs-target":"#staticBackdrop2"},
                     action: function() {
-                        alert('Add new record logic here');
+                        console.log(self.modal_collections['entry']);
+                        const modalElement = bootstrap.Modal.getOrCreateInstance(self.modal_collections['entry']);
+                        modalElement.show();
                     }
                 },
                 {
@@ -617,6 +672,8 @@ class jsonDataTable {
 document.addEventListener("DOMContentLoaded", async () => {
     let dataTable = await jsonDataTable.create();
     dataTable.initDataTable();
+    await dataTable.load_ddopts();
+    await dataTable.generateNewEntryModal();
 
     const compare = dataTable.compareJSONFiles('js/SP_CALL_DATA_ILAB_LIST2025-2026-01-18.json','js/SP_CALL_DATA_ILAB_LIST2026-2026-01-18.json');
     console.log(compare);
