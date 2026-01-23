@@ -8,7 +8,7 @@ class jsonDataTable {
         this.normalizedDateCache = new Map(); // Cache for normalized dates
         this.dd_opts = null;
         this.new_entry_opts = null;
-        this.modal_collections = [];
+        this.modal_collections = {};
     }
 
     static async create() {
@@ -290,7 +290,7 @@ class jsonDataTable {
         }
         modalbody.appendChild(purpose_dd);
 
-        this.modal_collections.push({'entry': blank_modal});
+        this.modal_collections['entry'] = blank_modal;
 
         return blank_modal;
     }
@@ -318,7 +318,7 @@ class jsonDataTable {
                     text: 'New',
                     attr: { "id": 'newEntryBtn1', "type":"button","class": 'btn btn-success', "data-bs-target":"#staticBackdrop2"},
                     action: function() {
-                        console.log(self.modal_collections['entry']);
+                        console.log(self.modal_collections[0]);
                         const modalElement = bootstrap.Modal.getOrCreateInstance(self.modal_collections['entry']);
                         modalElement.show();
                     }
