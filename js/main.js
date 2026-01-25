@@ -274,24 +274,76 @@ class jsonDataTable {
         }
     }
 
-    async generateNewEntryModal() {
-        const blank_modal = document.getElementById('staticBackdrop2').cloneNode(true);
-        const modalbody = blank_modal.querySelector('.modal-body');
+    async clearVisualDownStream(sel_elm) {
 
-        const purpose_dd = document.createElement('select');
-        const dd_optsentries = Object.entries(this.dd_opts.data);
-        for (const purpose of dd_optsentries) {
+    }
+    async handleDropDownCascade(e) {
+        console.log(e);
+        if (!e) return; // Guard against undefined event
+        const selected_elm = e.target; // Use currentTarget for the element the listener is attached to
+        const selectedOption = selected_elm.options[selected_elm.selectedIndex];
+        const hasNextSel = selectedOption.getAttribute('hasNext');
+        console.log(hasNextSel);
+        if (hasNextSel === 'false') {
+            const allSelDDss = document.querySelectorAll('[id^="div_purpose_dd"]');
+            console.log('allSelDDss.length:', allSelDDss.length);
+            allSelDDss.forEach((elm) => {
+                console.log('elm.id:',elm.id);
+                console.log('selected_elm.id:',selected_elm.id);
+                if (elm.id > 'div_'+selected_elm.id) { // Compare ids as strings
+                    elm.classList.add('visually-hidden');
+                }
+            });
+        } else {
+            const nextID = selected_elm.id.replace(/(\d+)$/, (match) => parseInt(match) + 1);
+            console.log(nextID);
+            const allSelDDss = document.querySelectorAll('[id^="div_purpose_dd"]');
+            allSelDDss.forEach( (elm) => {
+                if (elm.id > 'div_'+selected_elm.id) { // Compare ids as strings
+                    elm.classList.remove('visually-hidden');
+                }
+            });
+        }
+    }
+
+    async populateDDentry(entries, parentSelectID, parentmodal) {
+        console.log('parentSelectID:', parentSelectID);
+        const selectElm = parentmodal.querySelector('#'+parentSelectID);
+        if (!selectElm) {
+            return;
+        }
+        const nextID = parentSelectID.replace(/(\d+)$/, (match) => parseInt(match) + 1);
+        for (const purpose of entries) {
             if (!purpose) {
                 continue;
             }
             let opt = document.createElement('option');
             opt.innerText = purpose[0];
-            purpose_dd.appendChild(opt);
+
+            if (!purpose[1].enum_id) {
+                opt.setAttribute("hasNext",true);
+                this.populateDDentry(Object.entries(purpose[1]),nextID,parentmodal);
+            } else {
+                opt.setAttribute("hasNext", false);
+                opt.value = purpose[1].enum_id;
+            }
+            selectElm.appendChild(opt);
         }
-        modalbody.appendChild(purpose_dd);
+        selectElm.addEventListener("change", (e) =>{
+            this.handleDropDownCascade(e);
+        });
+    }
+
+    async generateNewEntryModal() {
+        const blank_modal = document.getElementById('staticBackdrop2').cloneNode(true);
+        const init_sel_id = 'purpose_dd1'; //purpose_dd1
+        const dd_optsentries = Object.entries(this.dd_opts.data);
+
+        this.populateDDentry(dd_optsentries, init_sel_id, blank_modal);
 
         this.modal_collections['entry'] = blank_modal;
 
+        document.getElementById('staticBackdrop2').remove();
         return blank_modal;
     }
 
@@ -318,7 +370,6 @@ class jsonDataTable {
                     text: 'New',
                     attr: { "id": 'newEntryBtn1', "type":"button","class": 'btn btn-success', "data-bs-target":"#staticBackdrop2"},
                     action: function() {
-                        console.log(self.modal_collections[0]);
                         const modalElement = bootstrap.Modal.getOrCreateInstance(self.modal_collections['entry']);
                         modalElement.show();
                     }
