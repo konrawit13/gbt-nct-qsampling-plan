@@ -1,4 +1,6 @@
-
+import { IDGenerator } from '../components/IDGenerator.js';
+import { FloatingInput } from '../components/FloatInput.js';
+import { DatePicker } from '../components/DatePicker.js';
 class jsonDataTable {
     constructor(data,loadstate) {
         this.json_url = "js/sampling_prog2026-01-22.json";
@@ -301,14 +303,94 @@ class jsonDataTable {
     }
     async populateNewEntryModel(top_menu) {
         let toplvlmenus = Object.keys(this.new_entry_opts.root).slice(0,3);
-        console.log(toplvlmenus);
+        // console.log('top_menu', top_menu);
 
         toplvlmenus.map( (title,index) =>{
-            let topmenu_tmpl = top_menu.getElementById('div_templ_topic_title1').cloneNode(true);
-            topmenu_tmpl.children[0].innerText = parseInt(topmenu_tmpl.children[0].innerText)+1;
+            let topmenu_tmpl = top_menu.querySelector('#div_templ_topic_title1').cloneNode(true);
+            topmenu_tmpl.children[0].innerText = parseInt(topmenu_tmpl.children[0].innerText)+(index+1);
             topmenu_tmpl.children[1].innerText = title;
-            top_menu.appendChild(topmenu_tmpl);
+
+            console.log('topmenu_tmpl:',topmenu_tmpl);
+            
+            let hrsect1parent = top_menu.querySelector('#hr_sect1').parentNode;
+
+            hrsect1parent.appendChild(topmenu_tmpl);
+            
+            if (title == 'id') {
+                let idbox = document.createElement('div');
+                idbox.id = 'idbox_newEntry';
+                const idgen = IDGenerator('id');
+                idgen.render(idbox);
+                hrsect1parent.appendChild(idbox);
+                return;
+            }
+
+            if (title == 'sampling_meta') {
+                hrsect1parent.lastElementChild.remove();
+                topmenu_tmpl.children[1].innerText = 'Procedure Information:';
+                hrsect1parent.appendChild(topmenu_tmpl);
+                let meta_list = Object.keys(this.new_entry_opts.root.sampling_meta).slice(0,2); // no sampling purpose in this case
+                console.log('keylist:',meta_list);
+                for (const key of meta_list) {
+                    if (key == 'sample_sending_id') {
+                        const finput = FloatingInput(key,this.new_entry_opts.root.sampling_meta[key],[]);
+                        const div_fsampling_sending_id = document.createElement('div');
+                        finput.render(div_fsampling_sending_id);
+
+                        hrsect1parent.appendChild(div_fsampling_sending_id);
+                    }
+                    if (key == 'sample_sending_date') {
+                        const datepick_senddate = DatePicker(key, this.new_entry_opts.root.sampling_meta[key], new Date());
+                        const div_date = document.createElement('div');
+                        datepick_senddate.render(div_date);
+
+                        hrsect1parent.appendChild(div_date);
+                    }
+                }
+                return;
+            }
+
+            if (title == 'sampling_detail') {
+                hrsect1parent.lastElementChild.remove();
+                topmenu_tmpl.children[1].innerText = 'Sampling Detail:';
+                hrsect1parent.appendChild(topmenu_tmpl);
+
+                const div_itemrow = document.createElement('div');
+                div_itemrow.innerHTML = `
+                    <span class="badge text-bg-secondary item-badgebox">Item:</span>
+                `
+                hrsect1parent.appendChild(div_itemrow);
+                let key_list = Object.keys(this.new_entry_opts.root.sampling_detail['item']);
+
+                for (const key of key_list) {
+                    const div_fsampling = document.createElement('div');
+                    const finput = FloatingInput(key,this.new_entry_opts.root.sampling_detail['item'][key],[]);
+                    finput.render(div_fsampling);
+
+                    hrsect1parent.appendChild(div_fsampling);
+                }
+
+                const div_siterow = document.createElement('div');
+                div_siterow.innerHTML = `
+                    <span class="mt-3 site-badgebox">Site:</span>
+                `
+                hrsect1parent.appendChild(div_siterow);
+                let sitekey_list = Object.keys(this.new_entry_opts.root.sampling_detail['sampling_site']);
+                for (const key of sitekey_list) {
+                    const div_fsampling = document.createElement('div');
+                    const finput = FloatingInput(key,this.new_entry_opts.root.sampling_detail['sampling_site'][key],[]);
+                    finput.render(div_fsampling);
+
+                    hrsect1parent.appendChild(div_fsampling);
+                }                
+
+                return;
+            }
         });
+
+        // console.log('top_menu', top_menu);
+
+        return top_menu;
 
     }
 
@@ -345,11 +427,9 @@ class jsonDataTable {
         const init_sel_id = 'purpose_dd1'; //purpose_dd1
         const dd_optsentries = Object.entries(this.dd_opts.data);
 
-        this.populateDDentry(dd_optsentries, init_sel_id, blank_modal);
+        await this.populateDDentry(dd_optsentries, init_sel_id, blank_modal);
 
-        await this.populateNewEntryModel(blank_modal);
-        
-        this.modal_collections['entry'] = blank_modal;
+        this.modal_collections['entry'] = await this.populateNewEntryModel(blank_modal);
 
         
 
@@ -738,4 +818,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     
     const compare = dataTable.compareJSONFiles('js/SP_CALL_DATA_ILAB_LIST2025-2026-01-18.json','js/SP_CALL_DATA_ILAB_LIST2026-2026-01-18.json');
     console.log(compare);
+
+    // const counterComponent =  IDGenerator('id');
+    // counterComponent.render(document.getElementById('test-components'));
 });
