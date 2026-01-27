@@ -1,7 +1,29 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+
+// 1. Define the wrapper
+global.fetch = async (url, options) => {
+  // Check if it's a relative path or a local file
+  if (!url.startsWith('http')) {
+    const filePath = path.resolve(process.cwd(), url);
+    const content = await fs.readFile(filePath, 'utf8');
+    
+    return {
+      ok: true,
+      json: async () => JSON.parse(content),
+      text: async () => content,
+    };
+  }
+  // Fallback to standard fetch for actual URLs (Node 18+)
+  return nativeFetch(url, options);
+};
+
+const nativeFetch = fetch;
+
 
 class jsonDataTable {
     constructor(data,loadstate) {
-        this.json_url = "js/sampling_prog2026-01-22.json";
+        this.json_url = "sampling_prog2026-01-22.json";
         this.data = data;
         this.loading = loadstate; // Track loading state
         this.error = null;
@@ -17,7 +39,7 @@ class jsonDataTable {
         let loadstate = true;
         
         try {
-            const response = await fetch("js/sampling_prog2026-01-23.json"); //js\sampling_prog2026-01-23.json
+            const response = await fetch("sampling_prog2026-01-23.json"); //js\sampling_prog2026-01-23.json
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
@@ -282,6 +304,7 @@ class jsonDataTable {
         const selected_elm = e.target; // Use currentTarget for the element the listener is attached to
         const selectedOption = selected_elm.options[selected_elm.selectedIndex];
         const hasNextSel = selectedOption.getAttribute('hasNext');
+        console.log(hasNextSel);
         if (hasNextSel === 'false') {
             const allSelDDss = document.querySelectorAll('[id^="div_purpose_dd"]');
             allSelDDss.forEach((elm) => {
@@ -299,17 +322,10 @@ class jsonDataTable {
             });
         }
     }
-    async populateNewEntryModel(top_menu) {
-        let toplvlmenus = Object.keys(this.new_entry_opts.root).slice(0,3);
-        console.log(toplvlmenus);
-
-        toplvlmenus.map( (title,index) =>{
-            let topmenu_tmpl = top_menu.getElementById('div_templ_topic_title1').cloneNode(true);
-            topmenu_tmpl.children[0].innerText = parseInt(topmenu_tmpl.children[0].innerText)+1;
-            topmenu_tmpl.children[1].innerText = title;
-            top_menu.appendChild(topmenu_tmpl);
-        });
-
+    async populateNewEntryModel() {
+        // let toplvlmenus = await Object.keys(this.new_entry_opts);
+        console.log(this.new_entry_opts);
+        // console.log(toplvlmenus);
     }
 
     async populateDDentry(entries, parentSelectID, parentmodal) {
@@ -347,11 +363,7 @@ class jsonDataTable {
 
         this.populateDDentry(dd_optsentries, init_sel_id, blank_modal);
 
-        await this.populateNewEntryModel(blank_modal);
-        
         this.modal_collections['entry'] = blank_modal;
-
-        
 
         document.getElementById('staticBackdrop2').remove();
         return blank_modal;
@@ -730,12 +742,7 @@ class jsonDataTable {
     }
 }
 
-document.addEventListener("DOMContentLoaded", async () => {
-    let dataTable = await jsonDataTable.create();
-    dataTable.initDataTable();
-    await dataTable.load_ddopts();
-    await dataTable.generateNewEntryModal();
-    
-    const compare = dataTable.compareJSONFiles('js/SP_CALL_DATA_ILAB_LIST2025-2026-01-18.json','js/SP_CALL_DATA_ILAB_LIST2026-2026-01-18.json');
-    console.log(compare);
-});
+console.log('Hello World!');
+let dataTable = await jsonDataTable.create();
+await dataTable.load_ddopts();
+dataTable.populateNewEntryModel();
