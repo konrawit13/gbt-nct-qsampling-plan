@@ -1,6 +1,8 @@
 import { IDGenerator } from '../components/IDGenerator.js';
 import { FloatingInput } from '../components/FloatInput.js';
 import { DatePicker } from '../components/DatePicker.js';
+import { CascadingSelect } from '../components/CascadingSelect.js';
+
 class jsonDataTable {
     constructor(data,loadstate) {
         this.json_url = "js/sampling_prog2026-01-22.json";
@@ -276,9 +278,6 @@ class jsonDataTable {
         }
     }
 
-    async clearVisualDownStream(sel_elm) {
-
-    }
     async handleDropDownCascade(e) {
         if (!e) return; // Guard against undefined event
         const selected_elm = e.target; // Use currentTarget for the element the listener is attached to
@@ -395,7 +394,6 @@ class jsonDataTable {
     }
 
     async populateDDentry(entries, parentSelectID, parentmodal) {
-        console.log('parentSelectID:', parentSelectID);
         const selectElm = parentmodal.querySelector('#'+parentSelectID);
         if (!selectElm) {
             return;
@@ -423,17 +421,18 @@ class jsonDataTable {
     }
 
     async generateNewEntryModal() {
-        const blank_modal = document.getElementById('staticBackdrop2').cloneNode(true);
-        const init_sel_id = 'purpose_dd1'; //purpose_dd1
-        const dd_optsentries = Object.entries(this.dd_opts.data);
+        
+        const init_sel_id = 'div_purpose_dd1';
+        const dd_optsentries = await this.dd_opts;
 
-        await this.populateDDentry(dd_optsentries, init_sel_id, blank_modal);
+        const blank_modal = document.getElementById('staticBackdrop2').cloneNode(true);
+        document.getElementById('staticBackdrop2').remove();
+
+        const dynamicForm = CascadingSelect(blank_modal,init_sel_id, dd_optsentries);
+        dynamicForm.init();
 
         this.modal_collections['entry'] = await this.populateNewEntryModel(blank_modal);
 
-        
-
-        document.getElementById('staticBackdrop2').remove();
         return blank_modal;
     }
 
