@@ -1,3 +1,4 @@
+import { client, db } from '../src/appWriteConfig.js';
 import { IDGenerator } from '../components/IDGenerator.js';
 import { FloatingInput } from '../components/FloatInput.js';
 import { DatePicker } from '../components/DatePicker.js';
@@ -275,6 +276,18 @@ class jsonDataTable {
         } catch (err) {
             console.error("Error fetching data:", err);
             return null; 
+        }
+    }
+
+    async getappdata() {
+        try {
+            const response = await db.listRows({
+                databaseId: "697f9f61003677e2c3b7",
+                tableId: "samplingplan"
+            });
+            console.log(response);
+        } catch(e) {
+            console.log(e);
         }
     }
 
@@ -817,6 +830,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     
     const compare = dataTable.compareJSONFiles('js/SP_CALL_DATA_ILAB_LIST2025-2026-01-18.json','js/SP_CALL_DATA_ILAB_LIST2026-2026-01-18.json');
     console.log(compare);
+
+    dataTable.getappdata();
 
     // const counterComponent =  IDGenerator('id');
     // counterComponent.render(document.getElementById('test-components'));
